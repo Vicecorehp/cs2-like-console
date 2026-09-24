@@ -5,9 +5,12 @@ import java.util.List;
 
 import net.minecraft.ChatFormatting;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
+import net.minecraft.client.gui.components.CommandSuggestions;
 import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.input.KeyEvent;
+import net.minecraft.client.input.MouseButtonEvent;
+import net.minecraft.client.multiplayer.chat.ChatAbilities;
 import net.minecraft.network.chat.Component;
 import net.minecraft.util.FormattedCharSequence;
 import net.minecraft.util.Mth;
@@ -16,17 +19,20 @@ import org.lwjgl.glfw.GLFW;
 public class ConsoleScreen extends Screen {
     private static final int PADDING = 6;
     private static final int INPUT_HEIGHT = 12;
-    private static final float PANEL_HEIGHT_RATIO = 0.6F;
-    private static final int BACKDROP_COLOR = 0x66000000;
-    private static final int PANEL_COLOR = 0xD9101010;
-    private static final int BORDER_COLOR = 0xFF3C3C3C;
+    private static final int INPUT_X = 4;
+    private static final String PROMPT = "> ";
+    private static final int PANEL_COLOR = 0xC8101010;
+    private static final int SEPARATOR_COLOR = 0xFF3C3C3C;
     private static final int TEXT_COLOR = 0xFFD4D4D4;
     private static final int PROMPT_COLOR = 0xFF6FC3FF;
+    private static final int SUGGESTION_FILL_COLOR = 0xD0000000;
 
     private final List<String> history = new ArrayList<>();
     private final List<FormattedCharSequence> wrapped = new ArrayList<>();
 
     private EditBox input;
+    private CommandSuggestions commandSuggestions;
+    private String initial = "";
     private int historyIndex;
     private String draft = "";
     private int scroll;
@@ -43,36 +49,58 @@ public class ConsoleScreen extends Screen {
         if (!bannerLogged) {
             bannerLogged = true;
             ConsoleLog.add(Component.literal("CS2 Like Console").withStyle(ChatFormatting.AQUA));
-            ConsoleLog.add(Component.literal("Type a command and press Enter. Press ~ or Esc to close.")
+            ConsoleLog.add(Component.literal("Type a command and press Tab to complete. Press ~ or Esc to close.")
                     .withStyle(ChatFormatting.GRAY));
         }
 
         historyIndex = history.size();
 
-        int panelHeight = panelHeight();
-        int inputY = panelHeight - INPUT_HEIGHT - PADDING;
-
-        input = new EditBox(font, PADDING + font.width("> "), inputY, width - PADDING * 2 - font.width("> "),
+        input = new EditBox(font, INPUT_X + font.width(PROMPT), inputY(), width - INPUT_X * 2 - font.width(PROMPT),
                 INPUT_HEIGHT, Component.translatable("screen.cs2-like-console.input"));
         input.setMaxLength(256);
         input.setBordered(false);
+        input.setCanLoseFocus(false);
+        input.setValue(initial);
+
+        commandSuggestions = new CommandSuggestions(minecraft, this, input, font,
+                true, false, 1, 10, true, SUGGESTION_FILL_COLOR);
+        commandSuggestions.setAllowHiding(false);
+        commandSuggestions.setAllowSuggestions(false);
+
+        input.setResponder(text -> {
+            commandSuggestions.setAllowSuggestions(!text.isEmpty());
+
+            if (minecraft != null && minecraft.player != null && minecraft.getConnection() != null) {
+                commandSuggestions.updateCommandInfo();
+            }
+        });
         addRenderableWidget(input);
         setInitialFocus(input);
+
+        if (minecraft != null && minecraft.player != null) {
+            ChatAbilities abilities = minecraft.player.chatAbilities();
+            commandSuggestions.setRestrictions(abilities.canSendMessages(), abilities.canSendCommands());
+        }
+    }
+
+    @Override
+    public void resize(int width, int height) {
+        if (input != null) {
+            initial = input.getValue();
+        }
+
+        init(width, height);
     }
 
     @Override
     public void extractBackground(GuiGraphicsExtractor extractor, int mouseX, int mouseY, float partialTick) {
-        extractor.fill(0, 0, width, height, BACKDROP_COLOR);
     }
 
     @Override
     public void extractRenderState(GuiGraphicsExtractor extractor, int mouseX, int mouseY, float partialTick) {
         refreshWrapped();
 
-        int panelHeight = panelHeight();
-        extractor.fill(0, 0, width, panelHeight, PANEL_COLOR);
-        extractor.fill(0, panelHeight - 1, width, panelHeight, BORDER_COLOR);
-
+        extractor.fill(0, 0, width, height, PANEL_COLOR);
         extractor.text(font, title, PADDING, PADDING, TEXT_COLOR);
 
         if (scroll > 0) {
@@ -82,69 +110,87 @@ public class ConsoleScreen extends Screen {
 
         int top = logAreaTop();
         int bottom = logAreaBottom();
-        int lineHeight = font.lineHeight;
-        int rows = Math.max(1, (bottom - top) / lineHeight);
+        int rows = visibleRows();
         int end = Math.max(0, wrapped.size() - scroll);
         int start = Math.max(0, end - rows);
 
         extractor.enableScissor(0, top, width, bottom);
 
         for (int i = start; i < end; i++) {
-            extractor.text(font, wrapped.get(i), PADDING, top + (i - start) * lineHeight, TEXT_COLOR);
+            extractor.text(font, wrapped.get(i), PADDING, top + (i - start) * font.lineHeight, TEXT_COLOR);
         }
 
         extractor.disableScissor();
 
-        int inputY = panelHeight - INPUT_HEIGHT - PADDING;
-        extractor.text(font, ">", PADDING, inputY + (INPUT_HEIGHT - lineHeight) / 2, PROMPT_COLOR);
+        extractor.fill(0, inputY() - 3, width, inputY() - 2, SEPARATOR_COLOR);
+        extractor.text(font, PROMPT, INPUT_X, inputY() + (INPUT_HEIGHT - font.lineHeight) / 2, PROMPT_COLOR);
 
         super.extractRenderState(extractor, mouseX, mouseY, partialTick);
+        commandSuggestions.extractRenderState(extractor, mouseX, mouseY);
     }
 
     @Override
     public boolean keyPressed(KeyEvent event) {
-        int key = event.key();
-
-        if (key == GLFW.GLFW_KEY_ENTER || key == GLFW.GLFW_KEY_KP_ENTER) {
-            submit(input.getValue());
+        if (commandSuggestions.keyPressed(event)) {
             return true;
         }
 
-        if (key == GLFW.GLFW_KEY_UP) {
-            navigateHistory(-1);
-            return true;
-        }
-
-        if (key == GLFW.GLFW_KEY_DOWN) {
-            navigateHistory(1);
-            return true;
-        }
-
-        if (key == GLFW.GLFW_KEY_TAB) {
-            complete();
-            return true;
-        }
-
-        if (key == GLFW.GLFW_KEY_PAGE_UP) {
-            scrollBy(visibleRows());
-            return true;
-        }
-
-        if (key == GLFW.GLFW_KEY_PAGE_DOWN) {
-            scrollBy(-visibleRows());
-            return true;
-        }
-
-        if (key == GLFW.GLFW_KEY_GRAVE_ACCENT) {
+        if (event.key() == GLFW.GLFW_KEY_GRAVE_ACCENT) {
             onClose();
             return true;
         }
 
-        return super.keyPressed(event);
+        if (event.isUp()) {
+            navigateHistory(-1);
+            return true;
+        }
+
+        if (event.isDown()) {
+            navigateHistory(1);
+            return true;
+        }
+
+        if (event.key() == GLFW.GLFW_KEY_PAGE_UP) {
+            scrollBy(visibleRows());
+            return true;
+        }
+
+        if (event.key() == GLFW.GLFW_KEY_PAGE_DOWN) {
+            scrollBy(-visibleRows());
+            return true;
+        }
+
+        if (super.keyPressed(event)) {
+            return true;
+        }
+
+        if (event.isConfirmation()) {
+            if (!commandSuggestions.hasAllowedInput()) {
+                return true;
+            }
+
+            submit(input.getValue());
+            return true;
+        }
+
+        return false;
+    }
+
+    @Override
+    public boolean mouseClicked(MouseButtonEvent event, boolean doubleClick) {
+        if (commandSuggestions.mouseClicked(event)) {
+            return true;
+        }
+
+        return super.mouseClicked(event, doubleClick);
     }
 
     @Override
     public boolean mouseScrolled(double mouseX, double mouseY, double scrollX, double scrollY) {
+        if (commandSuggestions.mouseScrolled(Mth.clamp(scrollY, -1.0, 1.0))) {
+            return true;
+        }
+
         if (scrollY != 0.0) {
             scrollBy((int) Math.signum(scrollY) * 2);
             return true;
@@ -190,33 +236,7 @@ public class ConsoleScreen extends Screen {
         }
 
         historyIndex = Mth.clamp(historyIndex + delta, 0, history.size());
-        String value = historyIndex >= history.size() ? draft : history.get(historyIndex);
-        input.setValue(value);
-        input.moveCursorToEnd(false);
-    }
-
-    private void complete() {
-        String value = input.getValue();
-
-        if (value.isEmpty()) {
-            return;
-        }
-
-        List<String> matches = new ArrayList<>();
-
-        for (String entry : history) {
-            if (entry.startsWith(value) && !matches.contains(entry)) {
-                matches.add(entry);
-            }
-        }
-
-        if (matches.isEmpty()) {
-            return;
-        }
-
-        int current = matches.indexOf(value);
-        String next = matches.get(current < 0 ? 0 : (current + 1) % matches.size());
-        input.setValue(next);
+        input.setValue(historyIndex >= history.size() ? draft : history.get(historyIndex));
         input.moveCursorToEnd(false);
     }
 
@@ -251,10 +271,10 @@ public class ConsoleScreen extends Screen {
     }
 
     private int logAreaBottom() {
-        return panelHeight() - INPUT_HEIGHT - PADDING * 2;
+        return inputY() - PADDING;
     }
 
-    private int panelHeight() {
-        return Mth.clamp((int) (height * PANEL_HEIGHT_RATIO), INPUT_HEIGHT + PADDING * 4, height);
+    private int inputY() {
+        return height - INPUT_HEIGHT;
     }
 }
