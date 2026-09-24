@@ -2,5 +2,6 @@
   "key.category.cs2-like-console.console": "CS2 Like Console",
   "key.cs2-like-console.open_console": "Open Console",
   "screen.cs2-like-console.console": "Console",
-  "screen.cs2-like-console.input": "Enter a command"
+  "screen.cs2-like-console.input": "Enter a command",
+  "command.cs2-like-console.disconnecting": "Disconnecting to the main menu"
 }

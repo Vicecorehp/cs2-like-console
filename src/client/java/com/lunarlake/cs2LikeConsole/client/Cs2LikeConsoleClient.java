@@ -42,6 +42,8 @@ public class Cs2LikeConsoleClient implements ClientModInitializer {
         ClientReceiveMessageEvents.CHAT.register(
                 (message, signedMessage, sender, boundChatType, timestamp) -> ConsoleLog.add(message));
 
+        ConsoleCommands.register();
+
         LOGGER.info("Console key mapping registered");
     }
 }
