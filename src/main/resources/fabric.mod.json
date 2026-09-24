@@ -1,0 +1,35 @@
+{
+  "schemaVersion": 1,
+  "id": "cs2-like-console",
+  "version": "${version}",
+  "name": "cs2-like-console",
+  "description": "",
+  "authors": [],
+  "contact": {},
+  "license": "All-Rights-Reserved",
+  "icon": "assets/cs2-like-console/icon.png",
+  "environment": "client",
+  "entrypoints": {
+    "fabric-datagen": [
+      "com.lunarlake.cs2LikeConsole.client.Cs2LikeConsoleDataGenerator"
+    ],
+    "client": [
+      "com.lunarlake.cs2LikeConsole.client.Cs2LikeConsoleClient"
+    ],
+    "main": [
+      "com.lunarlake.cs2LikeConsole.Cs2LikeConsole"
+    ]
+  },
+  "mixins": [
+    "cs2-like-console.mixins.json",
+    {
+      "config": "cs2-like-console.client.mixins.json",
+      "environment": "client"
+    }
+  ],
+  "depends": {
+    "fabricloader": ">=${loader_version}",
+    "fabric-api": "*",
+    "minecraft": "${minecraft_version}"
+  }
+}
