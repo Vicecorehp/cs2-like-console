@@ -4,6 +4,7 @@ import com.mojang.blaze3d.platform.InputConstants;
 import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.fabricmc.fabric.api.client.keymapping.v1.KeyMappingHelper;
+import net.fabricmc.fabric.api.client.message.v1.ClientReceiveMessageEvents;
 import net.minecraft.client.KeyMapping;
 import net.minecraft.resources.Identifier;
 import org.lwjgl.glfw.GLFW;
@@ -31,10 +32,16 @@ public class Cs2LikeConsoleClient implements ClientModInitializer {
 
         ClientTickEvents.END_CLIENT_TICK.register(client -> {
             while (openConsole.consumeClick()) {
-                LOGGER.info("Console key pressed");
+                if (client.gui.screen() == null) {
+                    client.setScreenAndShow(new ConsoleScreen());
+                }
             }
         });
 
-        LOGGER.info("Client initialized");
+        ClientReceiveMessageEvents.GAME.register((message, overlay) -> ConsoleLog.add(message));
+        ClientReceiveMessageEvents.CHAT.register(
+                (message, signedMessage, sender, boundChatType, timestamp) -> ConsoleLog.add(message));
+
+        LOGGER.info("Console key mapping registered");
     }
 }

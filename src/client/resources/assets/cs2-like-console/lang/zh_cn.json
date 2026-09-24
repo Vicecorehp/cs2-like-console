@@ -1,4 +1,6 @@
 {
   "key.category.cs2-like-console.console": "CS2 风格控制台",
-  "key.cs2-like-console.open_console": "打开控制台"
+  "key.cs2-like-console.open_console": "打开控制台",
+  "screen.cs2-like-console.console": "控制台",
+  "screen.cs2-like-console.input": "输入指令"
 }
