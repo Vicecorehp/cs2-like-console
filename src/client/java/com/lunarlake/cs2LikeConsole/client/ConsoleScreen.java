@@ -14,6 +14,7 @@ import net.minecraft.client.multiplayer.chat.ChatAbilities;
 import net.minecraft.network.chat.Component;
 import net.minecraft.util.FormattedCharSequence;
 import net.minecraft.util.Mth;
+import org.jspecify.annotations.NonNull;
 import org.lwjgl.glfw.GLFW;
 
 public class ConsoleScreen extends Screen {
@@ -70,14 +71,14 @@ public class ConsoleScreen extends Screen {
         input.setResponder(text -> {
             commandSuggestions.setAllowSuggestions(!text.isEmpty());
 
-            if (minecraft != null && minecraft.player != null && minecraft.getConnection() != null) {
+            if (minecraft.player != null && minecraft.getConnection() != null) {
                 commandSuggestions.updateCommandInfo();
             }
         });
         addRenderableWidget(input);
         setInitialFocus(input);
 
-        if (minecraft != null && minecraft.player != null) {
+        if (minecraft.player != null) {
             ChatAbilities abilities = minecraft.player.chatAbilities();
             commandSuggestions.setRestrictions(abilities.canSendMessages(), abilities.canSendCommands());
         }
@@ -93,7 +94,7 @@ public class ConsoleScreen extends Screen {
     }
 
     @Override
-    public void extractBackground(GuiGraphicsExtractor extractor, int mouseX, int mouseY, float partialTick) {
+    public void extractBackground(@NonNull GuiGraphicsExtractor extractor, int mouseX, int mouseY, float partialTick) {
     }
 
     @Override
@@ -130,7 +131,7 @@ public class ConsoleScreen extends Screen {
     }
 
     @Override
-    public boolean keyPressed(KeyEvent event) {
+    public boolean keyPressed(@NonNull KeyEvent event) {
         if (commandSuggestions.keyPressed(event)) {
             return true;
         }
@@ -177,7 +178,7 @@ public class ConsoleScreen extends Screen {
     }
 
     @Override
-    public boolean mouseClicked(MouseButtonEvent event, boolean doubleClick) {
+    public boolean mouseClicked(@NonNull MouseButtonEvent event, boolean doubleClick) {
         if (commandSuggestions.mouseClicked(event)) {
             return true;
         }
@@ -211,7 +212,7 @@ public class ConsoleScreen extends Screen {
             return;
         }
 
-        if (history.isEmpty() || !history.get(history.size() - 1).equals(text)) {
+        if (history.isEmpty() || !history.getLast().equals(text)) {
             history.add(text);
         }
 
@@ -221,7 +222,7 @@ public class ConsoleScreen extends Screen {
         scroll = 0;
         ConsoleLog.add(Component.literal("> " + text).withStyle(ChatFormatting.AQUA));
 
-        if (minecraft != null && minecraft.getConnection() != null) {
+        if (minecraft.getConnection() != null) {
             minecraft.getConnection().sendCommand(text.startsWith("/") ? text.substring(1) : text);
         }
     }
